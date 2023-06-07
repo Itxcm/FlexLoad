@@ -2,9 +2,11 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using System.IO;
 
 public class BundleEditor
 {
+    public static string BUILDTARGETPATH = Application.streamingAssetsPath; // 打包输出路径
     public static string ABCONFIGPATH = "Assets/Data/ABConfig.asset"; // ab包配置表路径
     public static List<string> allFileList = new List<string>(); // 所有AB包文件夹路径 需要过滤的列表
     public static Dictionary<string, List<string>> prefabDic = new Dictionary<string, List<string>>(); // 单个prefab字典 ab包名 : 依赖路径列表
@@ -84,7 +86,9 @@ public class BundleEditor
         }
     }
 
-    // 打包 
+    #region AB包处理 AssetBundle
+
+    // 打包AssetBundle
     public static void BuildAssetBundle()
     {
         // 获取所有AB标记
@@ -105,9 +109,38 @@ public class BundleEditor
 
         // 生成自己的打包配置表
 
+        // 删除改变的AB包
+        DelAssetBundle();
 
-        BuildPipeline.BuildAssetBundles(Application.streamingAssetsPath, BuildAssetBundleOptions.ChunkBasedCompression, EditorUserBuildSettings.activeBuildTarget);
+        // API打包
+        BuildPipeline.BuildAssetBundles(BUILDTARGETPATH, BuildAssetBundleOptions.ChunkBasedCompression, EditorUserBuildSettings.activeBuildTarget);
     }
+    // 删除改变的AB包
+    public static void DelAssetBundle()
+    {
+        DirectoryInfo dc = new DirectoryInfo(BUILDTARGETPATH);
+        FileInfo[] files = dc.GetFiles("*", SearchOption.AllDirectories);
+
+        for (int i = 0; i < files.Length; i++)
+        {
+            if (files[i].Name.EndsWith(".meta") || ABLabelsContainName(files[i].Name)) continue; // 此包包含设置的Ab标签或者是meta文件
+            else if (File.Exists(files[i].FullName)) File.Delete(files[i].FullName); // 存在则删除之前的无用包
+        }
+    }
+
+    // 判断该AB包名称 是否在存在 当前的AB标签中
+    public static bool ABLabelsContainName(string name)
+    {
+        string[] abLabels = AssetDatabase.GetAllAssetBundleNames();
+
+        for (int i = 0; i < abLabels.Length; i++)
+        {
+            if (abLabels[i] == name) return true;
+        }
+        return false;
+    }
+    #endregion AB包处理 AssetBundle
+
     #region AB包标签
     public static void SetABlabel(string name, string path)
     {
@@ -138,7 +171,8 @@ public class BundleEditor
     #endregion AB包标签
 
     #region 通用判断方法
-    // 判断指定路径是否已经包含在文件夹路径中
+
+    // 判断指定路径是否已经包含在文件夹路径中 用于冗余剔除
     public static bool AllFileDirContainPath(string path)
     {
         for (int i = 0; i < allFileList.Count; i++)
