@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -37,8 +38,10 @@ public class BytesSerailization : MonoBehaviour
     // 二进制反序列化读取
     public BytesClass BytesClassDeSerailize()
     {
-        using FileStream fs = new FileStream(Application.dataPath + "/Bytes/test.bytes", FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+        //  using FileStream fs = new FileStream(Application.dataPath + "/Bytes/test.bytes", FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+        TextAsset ts = UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Bytes/test.bytes");
+        MemoryStream ms = new MemoryStream(ts.bytes);
         BinaryFormatter bf = new BinaryFormatter();
-        return bf.Deserialize(fs) as BytesClass;
+        return bf.Deserialize(ms) as BytesClass;
     }
 }
