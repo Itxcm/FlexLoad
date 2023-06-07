@@ -14,12 +14,28 @@ public class BundleEditor
     public static void Build()
     {
         ABConfig cf = AssetDatabase.LoadAssetAtPath<ABConfig>(ABCONFIGPATH);
+
+        // 处理需要打包的
         HandleFileDir(cf);
         HandlePrfab(cf);
+
+        // 设置AB标签
+        SetABLabelByAllDic();
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+
+        //  ClearABLabel();
+
+
+
+        // 清楚进度条
+        EditorUtility.ClearProgressBar();
     }
-    // 处理文件夹 将ab包名和文件夹路径对应进行存储
+    // 处理文件夹 将文件夹路径 和 指定名字 作为字典存储
     public static void HandleFileDir(ABConfig cf)
     {
+        prefabDic.Clear();
         fileDirDic.Clear();
         allFileList.Clear();
         foreach (var item in cf.fileDirPathList)
@@ -32,7 +48,7 @@ public class BundleEditor
             }
         }
     }
-    // 处理文件 将指定文件夹下的文件路径进行存储
+    // 处理文件 将文件夹下每一个prefabs 以 名称 和 依赖路径列表 作为字典存储
     public static void HandlePrfab(ABConfig cf)
     {
         // 获取指定文件夹路径下资源的GUID
@@ -54,7 +70,8 @@ public class BundleEditor
                 List<string> dpPathList = new List<string>();
                 foreach (var dpPath in alldps)
                 {
-                    if (AllFileDirContainPath(dpPath) || !dpPath.EndsWith(".cs")) Debug.LogErrorFormat("Prefab中依赖文件路径与文件夹路径重复! : {0}", dpPath);
+                    if (dpPath.EndsWith(".cs")) continue; // 跳过依赖的cs文件
+                    if (AllFileDirContainPath(dpPath)) Debug.LogErrorFormat("Prefab中依赖文件路径与文件夹路径重复! : {0}", dpPath);
                     else
                     {
                         dpPathList.Add(dpPath);
@@ -65,10 +82,38 @@ public class BundleEditor
                 else prefabDic.Add(go.name, dpPathList);
             }
         }
-        // 清除精度他
-        EditorUtility.ClearProgressBar();
+    }
+    // 根据配置好的字典 将文件或文件夹 设置AB标签
+    public static void SetABLabelByAllDic()
+    {
+        foreach (var item in prefabDic) SetABlabel(item.Key, item.Value);
+        foreach (var item in fileDirDic) SetABlabel(item.Key, item.Value);
+    }
+    // 清楚AB包标签 此处执行后编辑器标签为空白
+    public static void ClearABLabel()
+    {
+        string[] allBdNames = AssetDatabase.GetAllAssetBundleNames();
+        for (int i = 0; i < allBdNames.Length; i++)
+        {
+            AssetDatabase.RemoveAssetBundleName(allBdNames[i], true);
+            EditorUtility.DisplayProgressBar("清楚AB标签", "名称:" + allBdNames[i], i * 1.0f / allBdNames.Length);
+        }
     }
 
+    #region AB包标签
+    public static void SetABlabel(string name, string path)
+    {
+        AssetImporter assetImporter = AssetImporter.GetAtPath(path);
+        if (assetImporter == null) Debug.LogErrorFormat("不存在此路径! : {0}", path);
+        else assetImporter.assetBundleName = name;
+    }
+    public static void SetABlabel(string name, List<string> pathList)
+    {
+        foreach (string path in pathList) SetABlabel(name, path);
+    }
+    #endregion AB包标签
+
+    #region 通用判断方法
     // 判断指定路径是否已经包含在文件夹路径中
     public static bool AllFileDirContainPath(string path)
     {
@@ -78,4 +123,5 @@ public class BundleEditor
         }
         return false;
     }
+    #endregion
 }
