@@ -22,14 +22,14 @@ public class BundleEditor
         // 设置AB标签
         SetABLabelByAllDic();
 
-        AssetDatabase.SaveAssets();
+        // 打包
+        BuildAssetBundle();
+
+        // 清除AB标签
+        ClearABLabel();
+
+        // 刷新 关闭进度条
         AssetDatabase.Refresh();
-
-        //  ClearABLabel();
-
-
-
-        // 清楚进度条
         EditorUtility.ClearProgressBar();
     }
     // 处理文件夹 将文件夹路径 和 指定名字 作为字典存储
@@ -83,23 +83,31 @@ public class BundleEditor
             }
         }
     }
-    // 根据配置好的字典 将文件或文件夹 设置AB标签
-    public static void SetABLabelByAllDic()
-    {
-        foreach (var item in prefabDic) SetABlabel(item.Key, item.Value);
-        foreach (var item in fileDirDic) SetABlabel(item.Key, item.Value);
-    }
-    // 清楚AB包标签 此处执行后编辑器标签为空白
-    public static void ClearABLabel()
-    {
-        string[] allBdNames = AssetDatabase.GetAllAssetBundleNames();
-        for (int i = 0; i < allBdNames.Length; i++)
-        {
-            AssetDatabase.RemoveAssetBundleName(allBdNames[i], true);
-            EditorUtility.DisplayProgressBar("清楚AB标签", "名称:" + allBdNames[i], i * 1.0f / allBdNames.Length);
-        }
-    }
 
+    // 打包 
+    public static void BuildAssetBundle()
+    {
+        // 获取所有AB标记
+        string[] allBundNames = AssetDatabase.GetAllAssetBundleNames();
+        // 路径 Ab包名 字典
+        Dictionary<string, string> abNamePathDic = new Dictionary<string, string>();
+
+        for (int i = 0; i < allBundNames.Length; i++)
+        {
+            // 获取该标记的所有资源路径
+            string[] assetPaths = AssetDatabase.GetAssetPathsFromAssetBundle(allBundNames[i]);
+            for (int j = 0; j < assetPaths.Length; j++)
+            {
+                if (assetPaths[j].EndsWith("cs")) continue;
+                abNamePathDic.Add(assetPaths[j], allBundNames[i]);
+            }
+        }
+
+        // 生成自己的打包配置表
+
+
+        BuildPipeline.BuildAssetBundles(Application.streamingAssetsPath, BuildAssetBundleOptions.ChunkBasedCompression, EditorUserBuildSettings.activeBuildTarget);
+    }
     #region AB包标签
     public static void SetABlabel(string name, string path)
     {
@@ -110,6 +118,22 @@ public class BundleEditor
     public static void SetABlabel(string name, List<string> pathList)
     {
         foreach (string path in pathList) SetABlabel(name, path);
+    }
+    // 根据配置好的字典 将文件或文件夹 设置AB标签
+    public static void SetABLabelByAllDic()
+    {
+        foreach (var item in prefabDic) SetABlabel(item.Key, item.Value);
+        foreach (var item in fileDirDic) SetABlabel(item.Key, item.Value);
+    }
+    // 清除AB包标签 此处执行后编辑器标签为空白
+    public static void ClearABLabel()
+    {
+        string[] allBdNames = AssetDatabase.GetAllAssetBundleNames();
+        for (int i = 0; i < allBdNames.Length; i++)
+        {
+            AssetDatabase.RemoveAssetBundleName(allBdNames[i], true);
+            EditorUtility.DisplayProgressBar("清楚AB标签", "名称:" + allBdNames[i], i * 1.0f / allBdNames.Length);
+        }
     }
     #endregion AB包标签
 
