@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: ABConfig
   m_EditorClassIdentifier: 
   filePath:
-  - Asset/GameData/Prefabs
+  - Assets/GameData/Prefabs
   fileDirPath:
   - ABName: shaders
-    Path: Asset/GameData/Shaders
+    Path: Assets/GameData/Shaders
   - ABName: sounds
-    Path: Asset/GameData/Sounds
+    Path: Assets/GameData/Sounds
