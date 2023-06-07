@@ -4,11 +4,11 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "ABConfig", menuName = "CreateABConfig", order = 0)]
 public class ABConfig : ScriptableObject
 {
-    // 单个文件路径列表(Prefabs) 必须保证名字唯一性 : 每个路径文件打一个包
-    public List<string> filePath = new List<string>();
+    // 单个文件夹下的每个Prefab路径 : 每个文件打一个包
+    public List<string> prefabPathList = new List<string>();
 
-    // 文件夹路径列表 打包列表中的所有文件夹 : 每个文件夹打一个包 指定包名
-    public List<FileDirABName> fileDirPath = new List<FileDirABName>();
+    // 指定文件夹路径和名称打包 : 每个文件夹打一个包
+    public List<FileDirABName> fileDirPathList = new List<FileDirABName>();
 
     [System.Serializable]
     public struct FileDirABName
