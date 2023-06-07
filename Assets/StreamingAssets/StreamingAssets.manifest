@@ -1,13 +1,14 @@
 ManifestFileVersion: 0
-CRC: 1577218977
+CRC: 3905933797
 AssetBundleManifest:
   AssetBundleInfos:
     Info_0:
-      Name: attack
-      Dependencies: {}
-    Info_1:
       Name: shaders
       Dependencies: {}
-    Info_2:
+    Info_1:
       Name: sounds
       Dependencies: {}
+    Info_2:
+      Name: attack
+      Dependencies:
+        Dependency_0: shaders

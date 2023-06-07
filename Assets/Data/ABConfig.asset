@@ -18,4 +18,4 @@ MonoBehaviour:
   - ABName: shaders
     Path: Assets/GameData/Shaders
   - ABName: sounds
-    Path: Assets/GameData/sounds
+    Path: Assets/GameData/Sounds

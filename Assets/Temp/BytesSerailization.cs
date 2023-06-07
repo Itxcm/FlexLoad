@@ -17,6 +17,15 @@ public class BytesClass
 
 public class BytesSerailization : MonoBehaviour
 {
+
+    private void Start()
+    {
+        /*  AssetBundleConfig cf = BytesClassDeSerailize();
+          foreach (var item in cf.ABList)
+          {
+              Debug.Log(item.Path);
+          }*/
+    }
     // 创建类
     public BytesClass CreateBytesClass()
     {
@@ -36,12 +45,12 @@ public class BytesSerailization : MonoBehaviour
     }
 
     // 二进制反序列化读取
-    /*  public BytesClass BytesClassDeSerailize()
-      {
-          //  using FileStream fs = new FileStream(Application.dataPath + "/Bytes/test.bytes", FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
-          TextAsset ts = UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Bytes/test.bytes");
-          MemoryStream ms = new MemoryStream(ts.bytes);
-          BinaryFormatter bf = new BinaryFormatter();
-          return bf.Deserialize(ms) as BytesClass;
-      }*/
+    /*    public AssetBundleConfig BytesClassDeSerailize()
+        {
+            //  using FileStream fs = new FileStream(Application.dataPath + "/Bytes/test.bytes", FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+            TextAsset ts = UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Config/AssetBundleConfig.bytes");
+            MemoryStream ms = new MemoryStream(ts.bytes);
+            BinaryFormatter bf = new BinaryFormatter();
+            return bf.Deserialize(ms) as AssetBundleConfig;
+        }*/
 }
