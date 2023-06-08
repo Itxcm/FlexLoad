@@ -3,6 +3,7 @@
   <ABList Path="Assets/GameData/Prefabs/Attack.prefab" Crc="192126642" ABName="attack" AssetName="Attack.prefab">
     <ABDependence>shaders</ABDependence>
   </ABList>
+  <ABList Path="Assets/GameData/Data/AssetBundleConfig.bytes" Crc="4111725031" ABName="data" AssetName="AssetBundleConfig.bytes" />
   <ABList Path="Assets/GameData/Shaders/benghuai.shader" Crc="2153760648" ABName="shaders" AssetName="benghuai.shader" />
   <ABList Path="Assets/GameData/Shaders/Skybox.shader" Crc="2040549738" ABName="shaders" AssetName="Skybox.shader" />
   <ABList Path="Assets/GameData/Shaders/Water.shader" Crc="3794094069" ABName="shaders" AssetName="Water.shader" />
