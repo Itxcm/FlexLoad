@@ -64,7 +64,7 @@ public class BundleEditor
             ab.Path = abPathK; // ab包路径
             ab.Crc = Crc32.GetCrc32(abPathK); // 路径对应的唯一crc
             ab.AssetName = abPathK.Remove(0, abPathK.LastIndexOf("/") + 1); // ab资源名称
-            ab.ABDependence = new List<string>(); // ab依赖项
+            ab.Dependence = new List<string>(); // ab依赖项
 
             // 根据ab包路径 获取所有依赖路径 
             string[] dbPaths = AssetDatabase.GetDependencies(abPathK);
@@ -77,7 +77,7 @@ public class BundleEditor
                 if (pathABNameDic.TryGetValue(dbPaths[i], out string abName))
                 {
                     if (abName == abNameV) continue; // 排除自身
-                    if (!ab.ABDependence.Contains(abName)) ab.ABDependence.Add(abName); // 添加依赖的其他bundle名称
+                    if (!ab.Dependence.Contains(abName)) ab.Dependence.Add(abName); // 添加依赖的其他bundle名称
                 }
             }
             cf.ABList.Add(ab);

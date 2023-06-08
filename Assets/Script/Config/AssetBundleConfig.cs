@@ -42,6 +42,6 @@ public class ABBase
     /// <summary>
     /// 依赖的AB包名称列表
     /// </summary>
-    [XmlElement("ABDependence")]
-    public List<string> ABDependence { get; set; }
+    [XmlElement("Dependence")]
+    public List<string> Dependence { get; set; }
 }

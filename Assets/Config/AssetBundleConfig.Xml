@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AssetBundleConfig xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ABList Path="Assets/GameData/Prefabs/Attack.prefab" Crc="192126642" ABName="attack" AssetName="Attack.prefab">
-    <ABDependence>shaders</ABDependence>
+    <Dependence>shaders</Dependence>
   </ABList>
   <ABList Path="Assets/GameData/Data/AssetBundleConfig.bytes" Crc="4111725031" ABName="data" AssetName="AssetBundleConfig.bytes" />
   <ABList Path="Assets/GameData/Shaders/benghuai.shader" Crc="2153760648" ABName="shaders" AssetName="benghuai.shader" />
