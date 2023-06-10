@@ -10,7 +10,7 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
     // AB资源字典 key为Crc路径
     protected Dictionary<uint, ResourceItem> pathResoucrItemDic = new Dictionary<uint, ResourceItem>();
     // AssetBundle资源字典 key为AB包名的Crc
-    protected Dictionary<uint, AssetBundleItem> pathAssetBundleItemDic = new Dictionary<uint, AssetBundleItem>();
+    protected Dictionary<uint, AssetBundleItem> abNameAssetBundleItemDic = new Dictionary<uint, AssetBundleItem>();
 
     #region 对象池声明
     // AssetBundleItem 的对象池
@@ -56,11 +56,11 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
         return true;
     }
     /// <summary>
-    ///  根据Crc路径获取ResourceItem资源
+    /// 加载ResourceItem资源的AssetBundle
     /// </summary>
-    /// <param name="crc"></param>
+    /// <param name="crc">资源Crc路径</param>
     /// <returns></returns>
-    public ResourceItem GetResourceItem(uint crc)
+    public ResourceItem LoadResourceItem(uint crc)
     {
         if (!pathResoucrItemDic.TryGetValue(crc, out ResourceItem item) || item == null)
         {
@@ -74,24 +74,46 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
         // 先加载依赖
         if (item.Dependce != null)
         {
-            for (int i = 0; i < item.Dependce.Count; i++) LoadAsstBundle(item.Dependce[i]);
+            for (int i = 0; i < item.Dependce.Count; i++) LoadAssetBundle(item.Dependce[i]);
         }
 
-        item.AssetBundle = LoadAsstBundle(item.ABName);
+        item.AssetBundle = LoadAssetBundle(item.ABName);
 
         return item;
     }
+    /// <summary>
+    /// 释放ResourceItem的AssetBundle
+    /// </summary>
+    /// <param name="item"></param>
+    public void ReleaseResourceItem(ResourceItem item)
+    {
+        if (item.AssetBundle == null) return;
+
+        // 先卸载
+        if (item.Dependce != null)
+        {
+            for (int i = 0; i < item.Dependce.Count; i++) UnLoadAssetBundle(item.Dependce[i]);
+        }
+
+        UnLoadAssetBundle(item.ABName);
+    }
+    /// <summary>
+    /// 根据Crc路径获取ResourceItem
+    /// </summary>
+    /// <param name="crc">crc路径</param>
+    /// <returns></returns>
+    public ResourceItem GetResourceByCrcPath(uint crc) => pathResoucrItemDic[crc];
     /// <summary>
     ///  根据AB包名加载单个Assetbundle 重复加载添加引用个数
     /// </summary>
     /// <param name="abName">ab包名</param>
     /// <returns></returns>
-    private AssetBundle LoadAsstBundle(string abName)
+    private AssetBundle LoadAssetBundle(string abName)
     {
         uint crc = Crc32.GetCrc32(abName);
 
         // 从资源字典查询有没有这个Assebundle
-        if (!pathAssetBundleItemDic.TryGetValue(crc, out AssetBundleItem assetBundleItem))
+        if (!abNameAssetBundleItemDic.TryGetValue(crc, out AssetBundleItem assetBundleItem))
         {
             // 加载AssetBundle
             AssetBundle assetBundle = null;
@@ -106,12 +128,32 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
             assetBundleItem.RefCount++;
 
             // 添加到AssetBundleItem字典
-            pathAssetBundleItemDic.Add(crc, assetBundleItem);
+            abNameAssetBundleItemDic.Add(crc, assetBundleItem);
         }
         else assetBundleItem.RefCount++;
 
         return assetBundleItem.AssetBundle;
     }
+    /// <summary>
+    /// 根据AB包名卸载单个Assetbundle 存在其他引用则只减少引用次数
+    /// </summary>
+    /// <param name="abName"></param>
+    private void UnLoadAssetBundle(string abName)
+    {
+        uint crc = Crc32.GetCrc32(abName);
+        if (abNameAssetBundleItemDic.TryGetValue(crc, out AssetBundleItem item) && item != null)
+        {
+            item.RefCount--;
+            if (item.RefCount <= 0 && item.AssetBundle != null)
+            {
+                item.AssetBundle.Unload(true);
+                item.Reset();
+                assetBundleItemPool.Recyle(item);
+                abNameAssetBundleItemDic.Remove(crc);
+            }
+        }
+    }
+
 }
 
 /// <summary>
@@ -122,6 +164,9 @@ public class AssetBundleItem
     public AssetBundle AssetBundle;
     public int RefCount;
 
+    /// <summary>
+    /// 卸载时滞空
+    /// </summary>
     public void Reset()
     {
         AssetBundle = null;

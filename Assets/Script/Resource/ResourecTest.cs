@@ -14,11 +14,11 @@ public class ResourecTest : MonoBehaviour
         AssetBundleManager.Instance.LoadAssetBundleConfig();
 
         uint crc = Crc32.GetCrc32("Assets/GameData/Prefabs/Attack.prefab");
-        ResourceItem item = AssetBundleManager.Instance.GetResourceItem(crc);
+        ResourceItem item = AssetBundleManager.Instance.LoadResourceItem(crc);
         GameObject go = item.AssetBundle.LoadAsset<GameObject>(item.AssetName);
         Instantiate(go);
-
-        uint crc1 = Crc32.GetCrc32("Assets/GameData/Shaders/benghuai.shader");
+        /* AssetBundleManager.Instance.ReleaseResourceItem(item);
+         Instantiate(go);*/
         //  ResourceItem item1 = AssetBundleManager.Instance.GetResourceItem(crc1);
 
         /*   AssetBundle abBundle = AssetBundle.LoadFromFile(Application.streamingAssetsPath + "/Data");
