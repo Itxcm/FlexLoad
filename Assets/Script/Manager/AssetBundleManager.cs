@@ -153,7 +153,6 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
             }
         }
     }
-
 }
 
 /// <summary>

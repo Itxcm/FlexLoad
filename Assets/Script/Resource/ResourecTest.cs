@@ -10,13 +10,29 @@ public class ResourecTest : MonoBehaviour
 
     void Start()
     {
+        ABBase aBBase1 = new ABBase();
+        aBBase1.ABName = "Test1";
+        ABBase aBBase2 = new ABBase();
+        aBBase2.ABName = "Test2";
+        ABBase aBBase3 = new ABBase();
+        aBBase3.ABName = "Test3";
 
-        AssetBundleManager.Instance.LoadAssetBundleConfig();
+        DoubleLinkedMap<ABBase> doubleLinkedMap = new DoubleLinkedMap<ABBase>();
 
-        uint crc = Crc32.GetCrc32("Assets/GameData/Prefabs/Attack.prefab");
-        ResourceItem item = AssetBundleManager.Instance.LoadResourceItem(crc);
-        GameObject go = item.AssetBundle.LoadAsset<GameObject>(item.AssetName);
-        Instantiate(go);
+        doubleLinkedMap.Insert(aBBase1);
+        doubleLinkedMap.Insert(aBBase2);
+        doubleLinkedMap.Insert(aBBase3);
+        doubleLinkedMap.Move(aBBase2);
+
+
+
+        /*  AssetBundleManager.Instance.LoadAssetBundleConfig();
+
+          uint crc = Crc32.GetCrc32("Assets/GameData/Prefabs/Attack.prefab");
+          ResourceItem item = AssetBundleManager.Instance.LoadResourceItem(crc);
+          GameObject go = item.AssetBundle.LoadAsset<GameObject>(item.AssetName);
+          Instantiate(go);*/
+
         /* AssetBundleManager.Instance.ReleaseResourceItem(item);
          Instantiate(go);*/
         //  ResourceItem item1 = AssetBundleManager.Instance.GetResourceItem(crc1);
