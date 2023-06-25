@@ -1,10 +1,86 @@
-using System.Collections;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 
 public class ResourceManager : Singleton<ResourceManager>
 {
+    // 是否从AssetBundle中加载
+    public bool IsLoadFromAssetBundle = false;
 
+    // 正在使用的资源字典 路径对应资源
+    public Dictionary<uint, ResourceItem> pathResourceDic = new Dictionary<uint, ResourceItem>();
+
+    // 未使用的资源Map(引用计数为0) 达到最大清除最早未使用的
+    public DoubleLinkedMap<ResourceItem> resourceMap = new DoubleLinkedMap<ResourceItem>();
+
+    // 加载指定资源
+    public T LoadResource<T>(string path) where T : Object
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return null;
+        }
+
+        uint crc = Crc32.GetCrc32(path);
+        ResourceItem item = GetCacheResource(crc);
+
+        // 资源存在
+        if (item != null)
+        {
+            return item.Object as T;
+        }
+
+        // 资源不存在
+        T obj = null;
+
+        // 编辑模式中 不从AB包中加载
+#if UNITY_EDITOR
+        if (!IsLoadFromAssetBundle)
+        {
+            obj = LoadAssetByEditor<T>(path);
+            item = AssetBundleManager.Instance.GetResourceByCrcPath(crc);
+        }
+#endif
+
+        // 非编辑器环境 从AB包中加载
+
+        if (obj == null)
+        {
+            item = AssetBundleManager.Instance.LoadResourceItem(crc);
+            if (item != null && item.AssetBundle != null)
+            {
+                obj = item.AssetBundle.LoadAsset<T>(item.AssetName);
+            }
+        }
+
+        return obj;
+    }
+
+    // 根据Crc路径获取指定缓存资源
+    public ResourceItem GetCacheResource(uint crc, int refCount = 1)
+    {
+        if (pathResourceDic.TryGetValue(crc, out ResourceItem item) && item != null)
+        {
+            item.RefCount += refCount;
+            item.LastRefTime = Time.realtimeSinceStartup;
+        }
+        return item;
+    }
+
+#if UNITY_EDITOR
+
+    /// <summary>
+    /// 编辑器模式下 加载指定路径资源
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="path"></param>
+    /// <returns></returns>
+    public T LoadAssetByEditor<T>(string path) where T : Object
+    {
+        return AssetDatabase.LoadAssetAtPath<T>(path);
+    }
+
+#endif
 }
 
 /// <summary>
@@ -16,6 +92,7 @@ public class DoubleLinkedListNode<T> where T : class, new()
     public DoubleLinkedListNode<T> Prev;
     public DoubleLinkedListNode<T> Next;
     public T Cul;
+
     public void Reset()
     {
         Prev = null;
@@ -35,6 +112,7 @@ public class DoubleLinkedList<T> where T : class, new()
     protected ClassObjectPool<DoubleLinkedListNode<T>> ContentPool = ObjectManager.Instance.GetOrCreateClassObjectPool<DoubleLinkedListNode<T>>(500);
     protected int _count;
     public int Count => _count;
+
     /// <summary>
     /// 添加一个节点到头部
     /// </summary>
@@ -47,6 +125,7 @@ public class DoubleLinkedList<T> where T : class, new()
         node.Cul = cul;
         return AddToHead(node);
     }
+
     /// <summary>
     /// 添加一个节点到头部
     /// </summary>
@@ -70,6 +149,7 @@ public class DoubleLinkedList<T> where T : class, new()
         _count++;
         return Head;
     }
+
     /// <summary>
     /// 添加一个节点到尾部
     /// </summary>
@@ -82,6 +162,7 @@ public class DoubleLinkedList<T> where T : class, new()
         node.Cul = cul;
         return AddToTail(node);
     }
+
     /// <summary>
     /// 添加一个节点到尾部
     /// </summary>
@@ -106,6 +187,7 @@ public class DoubleLinkedList<T> where T : class, new()
         _count++;
         return Tail;
     }
+
     /// <summary>
     /// 移除某个节点
     /// </summary>
@@ -130,6 +212,7 @@ public class DoubleLinkedList<T> where T : class, new()
         ContentPool.Recyle(node);
         _count--;
     }
+
     /// <summary>
     /// 移动节点到头部
     /// </summary>
@@ -158,6 +241,7 @@ public class DoubleLinkedList<T> where T : class, new()
         Tail ??= Head;
     }
 }
+
 /// <summary>
 /// 双向链表封装
 /// </summary>
@@ -166,8 +250,10 @@ public class DoubleLinkedMap<T> where T : class, new()
 {
     // 双链表
     protected DoubleLinkedList<T> _list = new DoubleLinkedList<T>();
+
     // 节点字典  类型 : 节点
     protected Dictionary<T, DoubleLinkedListNode<T>> _typeListDic = new Dictionary<T, DoubleLinkedListNode<T>>();
+
     /// <summary>
     /// 析构函数 主动情况列表
     /// </summary>
@@ -175,6 +261,7 @@ public class DoubleLinkedMap<T> where T : class, new()
     {
         Clear();
     }
+
     /// <summary>
     /// 插入到头部
     /// </summary>
@@ -189,6 +276,7 @@ public class DoubleLinkedMap<T> where T : class, new()
         _list.AddToHead(t);
         _typeListDic.Add(t, _list.Head);
     }
+
     /// <summary>
     /// 从尾部弹出
     /// </summary>
@@ -199,6 +287,7 @@ public class DoubleLinkedMap<T> where T : class, new()
             Remove(_list.Tail.Cul);
         return temp;
     }
+
     /// <summary>
     /// 移除一个节点
     /// </summary>
@@ -212,16 +301,19 @@ public class DoubleLinkedMap<T> where T : class, new()
         _list.RemoveNode(node);
         _typeListDic.Remove(t);
     }
+
     /// <summary>
     ///  获取尾部节点
     /// </summary>
     /// <returns></returns>
     public T Tail() => _list.Tail?.Cul;
+
     /// <summary>
     /// 返回节点个数
     /// </summary>
     /// <returns></returns>
     public int Size() => _typeListDic.Count;
+
     /// <summary>
     ///  查询是否存在节点
     /// </summary>
@@ -235,6 +327,7 @@ public class DoubleLinkedMap<T> where T : class, new()
         }
         return true;
     }
+
     /// <summary>
     ///  移动某个节点到头部
     /// </summary>
@@ -250,6 +343,7 @@ public class DoubleLinkedMap<T> where T : class, new()
 
         return true;
     }
+
     /// <summary>
     /// 清空列表
     /// </summary>

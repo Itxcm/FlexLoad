@@ -1,3 +1,4 @@
+
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -178,9 +179,24 @@ public class AssetBundleItem
 /// </summary>
 public class ResourceItem
 {
-    public uint Crc; // 路径对应Crc
-    public string ABName; //  AB包名
-    public string AssetName; // 资源名称
-    public List<string> Dependce; // 依赖列表
-    public AssetBundle AssetBundle; // 加载完成的AssetBundle
+    public uint Crc = 0; // 路径对应Crc
+    public string ABName = string.Empty; //  AB包名
+    public string AssetName = string.Empty; // 资源名称
+    public List<string> Dependce = null; // 依赖列表
+    public AssetBundle AssetBundle = null; // 加载完成的AssetBundle
+    public Object Object = null; // 实例化生成的游戏对象
+    public float LastRefTime = 0.0f; // 最后引用时间
+    protected int _refCount = 0;
+    public int RefCount // 引用计数
+    {
+        get => _refCount;
+        set
+        {
+            _refCount = value;
+            if (_refCount < 0)
+            {
+                Debug.LogErrorFormat("资源引用计数错误 资源名称{0}", AssetName);
+            }
+        }
+    }
 }
