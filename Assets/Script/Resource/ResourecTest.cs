@@ -7,22 +7,34 @@ using UnityEngine;
 
 public class ResourecTest : MonoBehaviour
 {
+    AudioSource m_AudioSource;
+    AudioClip Clip;
 
+    private void Awake()
+    {
+        m_AudioSource = GetComponent<AudioSource>();
+        AssetBundleManager.Instance.LoadAssetBundleConfig();
+    }
     void Start()
     {
-        ABBase aBBase1 = new ABBase();
-        aBBase1.ABName = "Test1";
-        ABBase aBBase2 = new ABBase();
-        aBBase2.ABName = "Test2";
-        ABBase aBBase3 = new ABBase();
-        aBBase3.ABName = "Test3";
+        Clip = ResourceManager.Instance.LoadResource<AudioClip>("Assets/GameData/Sounds/senlin.mp3");
+        m_AudioSource.clip = Clip;
+        m_AudioSource.Play();
 
-        DoubleLinkedMap<ABBase> doubleLinkedMap = new DoubleLinkedMap<ABBase>();
 
-        doubleLinkedMap.Insert(aBBase1);
-        doubleLinkedMap.Insert(aBBase2);
-        doubleLinkedMap.Insert(aBBase3);
-        doubleLinkedMap.Move(aBBase2);
+        /*  ABBase aBBase1 = new ABBase();
+          aBBase1.ABName = "Test1";
+          ABBase aBBase2 = new ABBase();
+          aBBase2.ABName = "Test2";
+          ABBase aBBase3 = new ABBase();
+          aBBase3.ABName = "Test3";
+
+          DoubleLinkedMap<ABBase> doubleLinkedMap = new DoubleLinkedMap<ABBase>();
+
+          doubleLinkedMap.Insert(aBBase1);
+          doubleLinkedMap.Insert(aBBase2);
+          doubleLinkedMap.Insert(aBBase3);
+          doubleLinkedMap.Move(aBBase2);*/
 
 
 
@@ -60,5 +72,15 @@ public class ResourecTest : MonoBehaviour
            AssetBundle bundle = AssetBundle.LoadFromFile(Application.streamingAssetsPath + "/" + abBase.ABName);
            GameObject go = bundle.LoadAsset<GameObject>(abBase.AssetName);
            Instantiate(go);*/
+    }
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.K))
+        {
+            m_AudioSource.Stop();
+            m_AudioSource.clip = null;
+            ResourceManager.Instance.ReleaseResource(Clip, true);
+            Clip = null;
+        }
     }
 }

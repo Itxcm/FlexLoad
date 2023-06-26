@@ -65,7 +65,7 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
     {
         if (!pathResoucrItemDic.TryGetValue(crc, out ResourceItem item) || item == null)
         {
-            Debug.LogErrorFormat("AB配置表中不存在这个资源 路径Crc为:{0}", crc);
+            Debug.LogErrorFormat("AB资源字典中不存在这个资源 路径Crc为:{0}", crc);
         }
         if (item.AssetBundle != null)
         {
@@ -88,7 +88,7 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
     /// <param name="item"></param>
     public void ReleaseResourceItem(ResourceItem item)
     {
-        if (item.AssetBundle == null) return;
+        if (item == null) return;
 
         // 先卸载
         if (item.Dependce != null)
@@ -161,8 +161,8 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
 /// </summary>
 public class AssetBundleItem
 {
-    public AssetBundle AssetBundle;
-    public int RefCount;
+    public AssetBundle AssetBundle = null;
+    public int RefCount = 0;
 
     /// <summary>
     /// 卸载时滞空
@@ -179,6 +179,7 @@ public class AssetBundleItem
 /// </summary>
 public class ResourceItem
 {
+    public int GUID = 0; // 资源唯一标识
     public uint Crc = 0; // 路径对应Crc
     public string ABName = string.Empty; //  AB包名
     public string AssetName = string.Empty; // 资源名称
