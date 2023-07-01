@@ -1,17 +1,19 @@
 ManifestFileVersion: 0
-CRC: 419276900
+CRC: 1862683301
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: cf9be601b1e3ddb8d8e0b9be2cbb7199
+    Hash: 1adfb3a45ae9e713066013bcdfa67b4a
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 5ad585dd02dfb5016c0dad519eab8f49
+    Hash: f267fd2d8bcb1179236b6179ac5313bc
 HashAppended: 0
 ClassTypes:
-- Class: 49
+- Class: 28
+  Script: {instanceID: 0}
+- Class: 213
   Script: {instanceID: 0}
 SerializeReferenceClassIdentifiers: []
 Assets:
-- Assets/GameData/Data/AssetBundleConfig.bytes
+- Assets/GameData/Sprite/WeiPai.png
 Dependencies: []

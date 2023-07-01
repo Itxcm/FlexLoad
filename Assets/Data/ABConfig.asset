@@ -21,3 +21,5 @@ MonoBehaviour:
     Path: Assets/GameData/Sounds
   - ABName: data
     Path: Assets/GameData/Data
+  - ABName: sprite
+    Path: Assets/GameData/Sprite

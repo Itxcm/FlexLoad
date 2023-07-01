@@ -4,22 +4,45 @@ using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
+using static ResourceManager;
 
 public class ResourecTest : MonoBehaviour
 {
     AudioSource m_AudioSource;
     AudioClip Clip;
+    public Image IMG;
 
     private void Awake()
     {
         m_AudioSource = GetComponent<AudioSource>();
         AssetBundleManager.Instance.LoadAssetBundleConfig();
+
+        ResourceManager.Instance.Init(this);
     }
     void Start()
     {
-        Clip = ResourceManager.Instance.LoadResource<AudioClip>("Assets/GameData/Sounds/senlin.mp3");
-        m_AudioSource.clip = Clip;
-        m_AudioSource.Play();
+        /*  Clip = ResourceManager.Instance.LoadResource<AudioClip>("Assets/GameData/Sounds/senlin.mp3");
+          m_AudioSource.clip = Clip;
+          m_AudioSource.Play();*/
+
+        //  uint crc = Crc32.GetCrc32("Assets/GameData/Sounds/senlin.mp3");
+        /*        ResourceManager.Instance.LoadResourceAsync("Assets/GameData/Sounds/senlin.mp3", crc, AsyncLoadPriority.RES_SLOW, (path, obj, objs) =>
+                {
+                    m_AudioSource.clip = obj as AudioClip;
+                    m_AudioSource.Play();
+                });*/
+
+
+        //   IMG.overrideSprite = ResourceManager.Instance.LoadResource<Sprite>("Assets/GameData/Sprite/WeiPai.png");
+
+
+        /*
+                ResourceManager.Instance.LoadResourceAsync("Assets/GameData/Sprite/WeiPai.png", 0, AsyncLoadPriority.RES_SLOW, true
+                    , (path, obj, objs) =>
+                {
+                    IMG.overrideSprite = obj as Sprite;
+                });*/
 
 
         /*  ABBase aBBase1 = new ABBase();

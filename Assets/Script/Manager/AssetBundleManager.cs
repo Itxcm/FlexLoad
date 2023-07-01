@@ -1,22 +1,18 @@
-
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
-using UnityEditor;
 using UnityEngine;
 
 public class AssetBundleManager : Singleton<AssetBundleManager>
 {
-    // AB资源字典 key为Crc路径
+    // AB资源字典 key为Crc路径 （加载与释放不会移除 只会滞空）
     protected Dictionary<uint, ResourceItem> pathResoucrItemDic = new Dictionary<uint, ResourceItem>();
-    // AssetBundle资源字典 key为AB包名的Crc
+
+    // AssetBundle资源字典 key为AB包名的Crc （加载与释放会移除）
     protected Dictionary<uint, AssetBundleItem> abNameAssetBundleItemDic = new Dictionary<uint, AssetBundleItem>();
 
-    #region 对象池声明
     // AssetBundleItem 的对象池
     protected ClassObjectPool<AssetBundleItem> assetBundleItemPool = ObjectManager.Instance.GetOrCreateClassObjectPool<AssetBundleItem>(500);
-    #endregion 对象池声明
 
     /// <summary>
     /// 加载AB包配置 并将配置的ABBase项转成ResourceItem存储
@@ -56,6 +52,16 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
 
         return true;
     }
+
+    /// <summary>
+    /// 根据Crc路径获取ResourceItem
+    /// </summary>
+    /// <param name="crc">crc路径</param>
+    /// <returns></returns>
+    public ResourceItem GetResourceByCrcPath(uint crc) => pathResoucrItemDic[crc];
+
+    #region 加载与释放 Crc路径的ResourceItem
+
     /// <summary>
     /// 加载ResourceItem资源的AssetBundle
     /// </summary>
@@ -82,6 +88,7 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
 
         return item;
     }
+
     /// <summary>
     /// 释放ResourceItem的AssetBundle
     /// </summary>
@@ -98,12 +105,11 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
 
         UnLoadAssetBundle(item.ABName);
     }
-    /// <summary>
-    /// 根据Crc路径获取ResourceItem
-    /// </summary>
-    /// <param name="crc">crc路径</param>
-    /// <returns></returns>
-    public ResourceItem GetResourceByCrcPath(uint crc) => pathResoucrItemDic[crc];
+
+    #endregion 加载与释放 Crc路径的ResourceItem
+
+    #region 加载与卸载 Ab包名的AssetBundle
+
     /// <summary>
     ///  根据AB包名加载单个Assetbundle 重复加载添加引用个数
     /// </summary>
@@ -119,9 +125,20 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
             // 加载AssetBundle
             AssetBundle assetBundle = null;
             string path = Application.streamingAssetsPath + "/" + abName;
-            if (File.Exists(path)) assetBundle = AssetBundle.LoadFromFile(path);
-            else Debug.LogErrorFormat("此AssetBundle不存在 路径:{0}", path);
-            if (assetBundle == null) Debug.LogErrorFormat("加载Assetbundle失败 路径:{0}", path);
+
+            if (File.Exists(path))
+            {
+                assetBundle = AssetBundle.LoadFromFile(path);
+            }
+            else
+            {
+                Debug.LogErrorFormat("此AssetBundle不存在 路径:{0}", path);
+            }
+
+            if (assetBundle == null)
+            {
+                Debug.LogErrorFormat("加载Assetbundle失败 路径:{0}", path);
+            }
 
             // 从池中取出AssetBundleItem赋值
             assetBundleItem = assetBundleItemPool.Spawn(true);
@@ -135,6 +152,7 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
 
         return assetBundleItem.AssetBundle;
     }
+
     /// <summary>
     /// 根据AB包名卸载单个Assetbundle 存在其他引用则只减少引用次数
     /// </summary>
@@ -154,6 +172,8 @@ public class AssetBundleManager : Singleton<AssetBundleManager>
             }
         }
     }
+
+    #endregion 加载与卸载 AssetBundle
 }
 
 /// <summary>
@@ -188,6 +208,7 @@ public class ResourceItem
     public Object Object = null; // 实例化生成的游戏对象
     public float LastRefTime = 0.0f; // 最后引用时间
     protected int _refCount = 0;
+
     public int RefCount // 引用计数
     {
         get => _refCount;

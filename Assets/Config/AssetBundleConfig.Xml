@@ -10,4 +10,5 @@
   <ABList Path="Assets/GameData/Shaders/Xray.shader" Crc="2720758644" ABName="shaders" AssetName="Xray.shader" />
   <ABList Path="Assets/GameData/Sounds/menusound.mp3" Crc="1701716301" ABName="sounds" AssetName="menusound.mp3" />
   <ABList Path="Assets/GameData/Sounds/senlin.mp3" Crc="662225670" ABName="sounds" AssetName="senlin.mp3" />
+  <ABList Path="Assets/GameData/Sprite/WeiPai.png" Crc="924938311" ABName="sprite" AssetName="WeiPai.png" />
 </AssetBundleConfig>

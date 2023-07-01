@@ -1,20 +1,20 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using static ResourceManager;
 
 public class ResourceManager : Singleton<ResourceManager>
 {
     // 是否从AssetBundle中加载
     public bool IsLoadFromAssetBundle = true;
-
     // 正在使用的资源字典 crc路径对应资源
     public Dictionary<uint, ResourceItem> _assetDic = new Dictionary<uint, ResourceItem>();
-
     // 未使用的资源Map(引用计数为0) 达到最大清除最早未使用的
     public DoubleLinkedMap<ResourceItem> resourceMap = new DoubleLinkedMap<ResourceItem>();
 
-    #region 非实例化资源的加载与卸载
+    #region 同步加载
 
     /// <summary>
     /// 同步加载
@@ -24,62 +24,323 @@ public class ResourceManager : Singleton<ResourceManager>
     /// <returns></returns>
     public T LoadResource<T>(string path) where T : Object
     {
-        if (string.IsNullOrEmpty(path))
-        {
-            return null;
-        }
+        if (string.IsNullOrEmpty(path)) return null;
 
         uint crc = Crc32.GetCrc32(path);
         ResourceItem item = GetCacheResource(crc);
 
-        // 资源存在
-        if (item != null)
-        {
-            return item.Object as T;
-        }
+        // 资源存在 直接返回 资源不存在 加载资源并缓存后返回
+        return item?.Object as T ?? LoadAssetAndCache<T>(path, crc);
+    }
 
-        // 资源不存在
-        T obj = null;
+    /// <summary>
+    /// 同步加载资源并缓存
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="path"></param>
+    /// <param name="crc"></param>
+    /// <returns></returns>
+    private T LoadAssetAndCache<T>(string path, uint crc) where T : Object
+    {
+        ResourceItem item;
+        Object obj = null;
 
-        // 编辑模式中 不从AB包中加载
-#if UNITY_EDITOR
-        if (!IsLoadFromAssetBundle)
-        {
-            item = AssetBundleManager.Instance.GetResourceByCrcPath(crc);
-            if (item.Object != null)
-            {
-                obj = item.Object as T;
-            }
-            else
-            {
-                obj = LoadAssetByEditor<T>(path);
-            }
-        }
-#endif
-
-        // 非编辑器环境 从AB包中加载
-
-        if (obj == null)
+        // AB包中加载
+        if (IsLoadFromAssetBundle)
         {
             item = AssetBundleManager.Instance.LoadResourceItem(crc);
-            if (item != null && item.AssetBundle != null)
-            {
-                if (item.Object != null)
-                {
-                    obj = item.Object as T;
-                }
-                else
-                {
-                    obj = item.AssetBundle.LoadAsset<T>(item.AssetName);
-                }
+            obj = null;
 
+            if (item?.AssetBundle != null)
+            {
+                obj = item.Object as T ?? item.AssetBundle.LoadAsset<T>(item.AssetName);
             }
         }
-        // 缓存资源
-        CacheResource(crc, path, ref item, obj);
+        // 编辑器加载
+        else
+        {
+            item = AssetBundleManager.Instance.GetResourceByCrcPath(crc);
+            obj = item?.Object as T ?? LoadAssetByEditor<T>(path);
+        }
 
-        return obj;
+        // 缓存资源
+        return CacheResource<T>(crc, path, ref item, obj);
     }
+
+    #endregion 同步加载
+
+    #region 异步加载
+
+    public delegate void OnAsyncLoadFinish(string path, Object obj, params object[] param); // 异步完成回调
+
+    private MonoBehaviour mono;  // 开启携程的mono脚本
+    private long lastYieldTime; // 上次加载完成时间
+    private const long MAXLONGRESETIME = 200000; // 最大异步加载时间 单位 微秒
+
+    private Dictionary<uint, AsyncTask> _asyncTaskDic = new Dictionary<uint, AsyncTask>();  // 正在异步加载的资源字典 存所有类型 路径为key
+    private List<AsyncTask>[] _asyncTaskList = new List<AsyncTask>[(int)AsyncLoadPriority.RES_NUM]; // 正在异步加载的资源列表 存每个类型对应一个列表
+
+    private ClassObjectPool<AsyncTask> _asyncTaskPool = ObjectManager.Instance.GetOrCreateClassObjectPool<AsyncTask>(50); // 异步加载参数对象池
+    private ClassObjectPool<AsyncLoadCallBack> _asyncLoadCallBackPool = ObjectManager.Instance.GetOrCreateClassObjectPool<AsyncLoadCallBack>(100); // 异步加载完成对象池
+
+    /// <summary>
+    /// 异步加载初始化
+    /// </summary>
+    /// <param name="mono"></param>
+    public void Init(MonoBehaviour mono)
+    {
+        for (int i = 0; i < (int)AsyncLoadPriority.RES_NUM; i++) _asyncTaskList[i] = new List<AsyncTask>();
+        this.mono = mono;
+        mono.StartCoroutine(LoadResourceCor());
+    }
+
+    /// <summary>
+    /// 异步加载资源
+    /// </summary>
+    /// <param name="path"></param>
+    /// <param name="crc"></param>
+    /// <param name="priority"></param>
+    /// <param name="finishCall"></param>
+    /// <param name="param"></param>
+    public void LoadResourceAsync(string path, uint crc, AsyncLoadPriority priority, bool isSprite, OnAsyncLoadFinish finishCall, params object[] param)
+    {
+        if (crc == 0) crc = Crc32.GetCrc32(path);
+
+        // 资源缓存了直接加载触发 没缓存 添加异步任务 给异步任务添加完成回调
+
+        ResourceItem item = GetCacheResource(crc);
+        if (item != null)
+        {
+            finishCall?.Invoke(path, item.Object, param);
+            return;
+        }
+
+        // 查找是否存在异步任务 不存在则添加 存在则拿出来添加回调
+        AsyncTask asyncTask = GetOrAddAsyncTask(crc, priority, path, isSprite);
+
+        // 指定异步任务添加完成回调
+        AddAsyncCallBack(asyncTask, finishCall, param);
+    }
+
+    /// <summary>
+    /// 异步加载资源携程器
+    /// </summary>
+    /// <returns></returns>
+    private IEnumerator LoadResourceCor()
+    {
+        while (true)
+        {
+            bool haveYield = false;
+            // 遍历异步加载列表 对每种优先级进行处理
+            for (int i = 0; i < _asyncTaskList.Length; i++)
+            {
+                List<AsyncTask> asyncList = _asyncTaskList[i];
+
+                if (asyncList.Count <= 0) continue;
+
+                // 异步加载资源 缓存并执行回调
+                mono.StartCoroutine(AsycnLoadAndCache(asyncList[0])); // 每次加载第一个 加载完成会自动移除
+
+                // 指定超过最大加载时间再继续
+                if (System.DateTime.Now.Ticks - lastYieldTime > MAXLONGRESETIME)
+                {
+                    yield return null;
+                    lastYieldTime = System.DateTime.Now.Ticks;
+                    haveYield = true;
+                }
+            }
+
+            // 指定超过最大加载时间再继续
+            if (!haveYield || System.DateTime.Now.Ticks - lastYieldTime > MAXLONGRESETIME)
+            {
+                lastYieldTime = System.DateTime.Now.Ticks;
+                yield return null;
+            }
+        }
+
+    }
+
+    /// <summary>
+    /// 异步加载资源 缓存并执行回调
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="path"></param>
+    /// <param name="crc"></param>
+    /// <param name="asyncTask"></param>
+    /// <returns></returns>
+    private IEnumerator AsycnLoadAndCache(AsyncTask asyncTask)
+    {
+        Object obj = null;
+        ResourceItem item = null;
+
+        // AB包加载
+        if (IsLoadFromAssetBundle)
+        {
+            item = AssetBundleManager.Instance.LoadResourceItem(asyncTask.Crc);
+
+            if (item?.AssetBundle != null)
+            {
+                // 这里需要准确判断是否是Sprite
+                AssetBundleRequest request = asyncTask.IsSprite ? item.AssetBundle.LoadAssetAsync<Sprite>(item.AssetName) : item.AssetBundle.LoadAssetAsync(item.AssetName);
+
+                while (!request.isDone)
+                {
+                    yield return null;
+                }
+
+                obj = request.asset;
+                lastYieldTime = System.DateTime.Now.Ticks;
+            }
+        }
+        // 编辑器加载
+        else
+        {
+            obj = LoadAssetByEditor<Object>(asyncTask.Path);
+
+            yield return new WaitForSeconds(0.5f);   // 模拟异步加载
+
+            item = AssetBundleManager.Instance.GetResourceByCrcPath(asyncTask.Crc);
+        }
+
+        // 缓存资源
+        CacheResource<Object>(asyncTask.Crc, asyncTask.Path, ref item, obj, asyncTask.CallBackList.Count); // 这里的引用数量取决于回调数量
+
+        // 执行加载完成回调
+        RemoveAsyncCallBack(asyncTask, obj);
+
+        // 移除异步任务
+        RemoveAsyncTask(asyncTask);
+
+    }
+
+    #region 异步中间类以及枚举
+
+    /// <summary>
+    /// 异步任务
+    /// </summary>
+    public class AsyncTask
+    {
+        public List<AsyncLoadCallBack> CallBackList = new List<AsyncLoadCallBack>(); // 已经加载完成的回调列表
+        public uint Crc; // Crc标识
+        public string Path; // 资源路径
+        public AsyncLoadPriority Priority; // 优先级
+        public bool IsSprite; // 是否是图片 (由于异步加载图片需要指定加载类型)
+
+        public void Reset()
+        {
+            Crc = 0;
+            Path = "";
+            IsSprite = false;
+            Priority = AsyncLoadPriority.RES_SLOW;
+            CallBackList.Clear();
+        }
+    }
+    /// <summary>
+    ///  异步加载完成
+    /// </summary>
+    public class AsyncLoadCallBack
+    {
+        public OnAsyncLoadFinish FinishCall;
+        public object[] Params;
+
+        public void Reset()
+        {
+            FinishCall = null;
+            Params = null;
+        }
+    }
+    /// <summary>
+    /// 异步加载优先级
+    /// </summary>
+    public enum AsyncLoadPriority
+    {
+        RES_HIGHT = 0,
+        RES_MIDDLE,
+        RES_SLOW,
+        RES_NUM
+    }
+
+    #endregion 异步中间类以及枚举
+
+    #region 异步任务处理
+
+    /// <summary>
+    /// 添加异步任务
+    /// </summary>
+    /// <param name="crc"></param>
+    /// <param name="priority"></param>
+    /// <param name="path"></param>
+    /// <param name="isSprite"></param>
+    private AsyncTask GetOrAddAsyncTask(uint crc, AsyncLoadPriority priority, string path, bool isSprite)
+    {
+        if (!_asyncTaskDic.TryGetValue(crc, out AsyncTask asyncTask) || asyncTask == null)
+        {
+            asyncTask = _asyncTaskPool.Spawn(true);
+            asyncTask.Crc = crc;
+            asyncTask.Priority = priority;
+            asyncTask.Path = path;
+            asyncTask.IsSprite = isSprite;
+
+            _asyncTaskDic.Add(crc, asyncTask); // 添加到异步任务字典
+            _asyncTaskList[(int)priority].Add(asyncTask); // 添加到异步任务列表
+        }
+        return asyncTask;
+    }
+
+    /// <summary>
+    /// 移除异步任务
+    /// </summary>
+    /// <param name="asyncTask"></param>
+    private void RemoveAsyncTask(AsyncTask asyncTask)
+    {
+        _asyncTaskDic.Remove(asyncTask.Crc);  //  从异步任务字典移除 
+        _asyncTaskList[(int)asyncTask.Priority].Remove(asyncTask); // 从异步任务列表移除
+
+        asyncTask.Reset();
+        _asyncTaskPool.Recyle(asyncTask);
+    }
+
+    /// <summary>
+    /// 添加异步完成回调
+    /// </summary>
+    private void AddAsyncCallBack(AsyncTask asyncTask, OnAsyncLoadFinish finishCall, params object[] param)
+    {
+        AsyncLoadCallBack callBack = _asyncLoadCallBackPool.Spawn(true);
+        callBack.FinishCall = finishCall;
+        callBack.Params = param;
+        asyncTask.CallBackList.Add(callBack);
+    }
+
+    /// <summary>
+    /// 触发并移除异步完成回调
+    /// </summary>
+    /// <param name="asyncTask"></param>
+    /// <param name="obj"></param>
+    private void RemoveAsyncCallBack(AsyncTask asyncTask, Object obj)
+    {
+        // 执行加载完成回调
+        for (int i = 0; i < asyncTask.CallBackList.Count; i++)
+        {
+            // 触发回调 并滞空
+            AsyncLoadCallBack callBack = asyncTask.CallBackList[i];
+            if (callBack?.FinishCall != null)
+            {
+                callBack.FinishCall.Invoke(asyncTask.Path, obj, callBack.Params);
+                callBack.FinishCall = null;
+            }
+
+            // 清空回收
+            callBack.Reset();
+            _asyncLoadCallBackPool.Recyle(callBack);
+        }
+    }
+
+    #endregion 异步任务处理
+
+    #endregion 异步加载
+
+    #region 资源卸载
+
     /// <summary>
     ///  资源卸载
     /// </summary>
@@ -106,7 +367,10 @@ public class ResourceManager : Singleton<ResourceManager>
         RecycleResource(item, isReleaseFromMemory);
         return true;
     }
-    #endregion 非实例化资源的加载与卸载
+
+    #endregion 资源卸载
+
+    #region 资源操作
 
     /// <summary>
     /// 回收资源 不释放会重新插入到头部
@@ -134,6 +398,7 @@ public class ResourceManager : Singleton<ResourceManager>
         }
 
     }
+
     /// <summary>
     /// 缓存引用的资源
     /// </summary>
@@ -142,7 +407,7 @@ public class ResourceManager : Singleton<ResourceManager>
     /// <param name="item"></param>
     /// <param name="obj"></param>
     /// <param name="addRefCount"></param>
-    private void CacheResource(uint crc, string path, ref ResourceItem item, Object obj, int addRefCount = 1)
+    private T CacheResource<T>(uint crc, string path, ref ResourceItem item, Object obj, int addRefCount = 1) where T : Object
     {
         if (item == null)
         {
@@ -167,7 +432,9 @@ public class ResourceManager : Singleton<ResourceManager>
         {
             _assetDic.Add(crc, item);
         }
+        return obj as T;
     }
+
     /// <summary>
     /// 根据Crc路径获取指定缓存资源
     /// </summary>
@@ -184,6 +451,8 @@ public class ResourceManager : Singleton<ResourceManager>
         return item;
     }
 
+    #endregion 资源操作
+
 #if UNITY_EDITOR
 
     /// <summary>
@@ -199,3 +468,4 @@ public class ResourceManager : Singleton<ResourceManager>
 
 #endif
 }
+
