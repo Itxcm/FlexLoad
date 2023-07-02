@@ -22,9 +22,10 @@ public class ResourecTest : MonoBehaviour
     }
     void Start()
     {
-        Clip = ResourceManager.Instance.LoadResource<AudioClip>("Assets/GameData/Sounds/senlin.mp3");
-        m_AudioSource.clip = Clip;
-        m_AudioSource.Play();
+        /*   Clip = ResourceManager.Instance.LoadResource<AudioClip>("Assets/GameData/Sounds/senlin.mp3");
+           m_AudioSource.clip = Clip;
+           m_AudioSource.Play();*/
+        ResourceManager.Instance.LoadResource<AudioClip>("Assets/GameData/Sounds/senlin.mp3", true);
 
         //  uint crc = Crc32.GetCrc32("Assets/GameData/Sounds/senlin.mp3");
         /*    ResourceManager.Instance.LoadResourceAsync("Assets/GameData/Sounds/senlin.mp3", AsyncLoadPriority.RES_SLOW, false, (path, obj, objs) =>
@@ -106,10 +107,20 @@ public class ResourecTest : MonoBehaviour
             ResourceManager.Instance.ReleaseResource(Clip, true);
             Clip = null;
         }
+
+        if (Input.GetKeyDown(KeyCode.J))
+        {
+            long start = System.DateTime.Now.Ticks;
+            Clip = ResourceManager.Instance.LoadResource<AudioClip>("Assets/GameData/Sounds/senlin.mp3");
+            Debug.Log($"{System.DateTime.Now.Ticks - start}");
+            m_AudioSource.clip = Clip;
+            m_AudioSource.Play();
+        }
     }
     private void OnApplicationQuit()
     {
 #if UNITY_EDITOR
+        ResourceManager.Instance.ClearCache();
         Resources.UnloadUnusedAssets();
         Debug.Log("Çå¿Õ±à¼­Æ÷»º´æ");
 #endif

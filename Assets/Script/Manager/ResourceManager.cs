@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using UnityEditor;
 using UnityEngine;
 using static ResourceManager;
@@ -8,11 +9,11 @@ using static ResourceManager;
 public class ResourceManager : Singleton<ResourceManager>
 {
     // 是否从AssetBundle中加载
-    public bool IsLoadFromAssetBundle = true;
-    // 正在使用的资源字典 crc路径对应资源
-    public Dictionary<uint, ResourceItem> _assetDic = new Dictionary<uint, ResourceItem>();
-    // 未使用的资源Map(引用计数为0) 达到最大清除最早未使用的
-    public DoubleLinkedMap<ResourceItem> resourceMap = new DoubleLinkedMap<ResourceItem>();
+    private bool IsLoadFromAssetBundle = true;
+    // 所由资源字典 crc路径对应资源
+    private Dictionary<uint, ResourceItem> _refAssetDic = new Dictionary<uint, ResourceItem>();
+    // 存放在内存中未引用的资源 达到最大清除最早未使用的
+    //  private DoubleLinkedMap<ResourceItem> _noRefAssetMap = new DoubleLinkedMap<ResourceItem>();
 
     #region 同步加载
 
@@ -20,27 +21,29 @@ public class ResourceManager : Singleton<ResourceManager>
     /// 同步加载
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    /// <param name="path"></param>
+    /// <param name="path">资源路径</param>
+    /// <param name="isPreLoad">是否开启预加载 预加载不做引用 加载完后卸载 记录在内存中</param>
     /// <returns></returns>
-    public T LoadResource<T>(string path) where T : Object
+    public T LoadResource<T>(string path, bool isPreLoad = false) where T : Object
     {
         if (string.IsNullOrEmpty(path)) return null;
 
         uint crc = Crc32.GetCrc32(path);
-        ResourceItem item = GetCacheResource(crc);
+        ResourceItem item = GetCacheResource(crc, isPreLoad ? 0 : 1); // 预加载 不添加引用计数
 
         // 资源存在 直接返回 资源不存在 加载资源并缓存后返回
-        return item?.Object as T ?? LoadAssetAndCache<T>(path, crc);
+        return item?.Object as T ?? LoadAssetAndCache<T>(path, crc, isPreLoad); // 预加载 则缓存然后卸载
     }
 
     /// <summary>
-    /// 同步加载资源并缓存
+    /// 同步加载资源并缓存 可选加载完后卸载
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="path"></param>
     /// <param name="crc"></param>
+    /// <param name="isRelease"></param>
     /// <returns></returns>
-    private T LoadAssetAndCache<T>(string path, uint crc) where T : Object
+    private T LoadAssetAndCache<T>(string path, uint crc, bool isRelease = false) where T : Object
     {
         ResourceItem item;
         Object obj = null;
@@ -64,7 +67,7 @@ public class ResourceManager : Singleton<ResourceManager>
         }
 
         // 缓存资源
-        return CacheResource<T>(crc, path, ref item, obj);
+        return CacheResource<T>(crc, path, ref item, obj, isRelease);
     }
 
     #endregion 同步加载
@@ -207,7 +210,7 @@ public class ResourceManager : Singleton<ResourceManager>
         }
 
         // 缓存资源
-        CacheResource<Object>(asyncTask.Crc, asyncTask.Path, ref item, obj, asyncTask.CallBackList.Count); // 这里的引用数量取决于回调数量
+        CacheResource<Object>(asyncTask.Crc, asyncTask.Path, ref item, obj, false, asyncTask.CallBackList.Count); // 这里的引用数量取决于回调数量
 
         // 执行加载完成回调
         RemoveAsyncCallBack(asyncTask, obj);
@@ -350,14 +353,14 @@ public class ResourceManager : Singleton<ResourceManager>
     /// <param name="obj"></param>
     /// <param name="isReleaseFromMemory">是否从内存释放</param>
     /// <returns></returns>
-    public bool ReleaseResource(Object obj, bool isReleaseFromMemory)
+    public bool ReleaseResource(Object obj, bool isReleaseFromMemory = false)
     {
         if (obj == null)
         {
             return false;
         }
 
-        ResourceItem item = _assetDic.Values.FirstOrDefault(item => item.GUID == obj.GetInstanceID());
+        ResourceItem item = _refAssetDic.Values.FirstOrDefault(item => item.GUID == obj.GetInstanceID());
 
         // 资源字典不存在该资源
         if (item == null)
@@ -371,12 +374,39 @@ public class ResourceManager : Singleton<ResourceManager>
         return true;
     }
 
+    /// <summary>
+    /// 资源卸载
+    /// </summary>
+    /// <param name="path"></param>
+    /// <param name="isReleaseFromMemory"></param>
+    /// <returns></returns>
+    public bool ReleaseResource(string path, bool isReleaseFromMemory = false)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return false;
+        }
+        uint crc = Crc32.GetCrc32(path);
+        _refAssetDic.TryGetValue(crc, out ResourceItem item);
+
+        // 资源字典不存在该资源
+        if (item == null)
+        {
+            Debug.LogErrorFormat("_assetDic not contains this Object, path:{0}", path);
+            return false;
+        }
+        // 去除该引用 回收该资源
+        item.RefCount--;
+        RecycleResource(item, isReleaseFromMemory);
+        return true;
+    }
+
     #endregion 资源卸载
 
     #region 资源操作
 
     /// <summary>
-    /// 回收资源 不释放会重新插入到头部
+    /// 回收资源 不释放会存入 未使用的资源Map中
     /// </summary>
     /// <param name="item"></param>
     /// <param name="isReleaseFromMemory">是否从内存释放</param>
@@ -386,10 +416,17 @@ public class ResourceManager : Singleton<ResourceManager>
         {
             return;
         }
+
         // 不需要从内存释放
         if (!isReleaseFromMemory)
         {
-            resourceMap.Insert(item);
+            //   _noRefAssetMap.Insert(item);
+            return;
+        }
+
+        // 从缓存引用字典中移除
+        if (!_refAssetDic.Remove(item.Crc))
+        {
             return;
         }
 
@@ -399,21 +436,23 @@ public class ResourceManager : Singleton<ResourceManager>
         {
             item.Object = null;
 #if UNITY_EDITOR
-            Resources.UnloadUnusedAssets();
+            Resources.UnloadUnusedAssets(); // 编辑器下加载 要释放资源需要这样释放
 #endif
         }
 
     }
 
     /// <summary>
-    /// 缓存引用的资源
+    /// 缓存引用的资源 可缓存后是否卸载
     /// </summary>
+    /// <typeparam name="T"></typeparam>
     /// <param name="crc"></param>
     /// <param name="path"></param>
     /// <param name="item"></param>
     /// <param name="obj"></param>
     /// <param name="addRefCount"></param>
-    private T CacheResource<T>(uint crc, string path, ref ResourceItem item, Object obj, int addRefCount = 1) where T : Object
+    /// <returns></returns>
+    private T CacheResource<T>(uint crc, string path, ref ResourceItem item, Object obj, bool isRelease = false, int addRefCount = 1) where T : Object
     {
         if (item == null)
         {
@@ -430,14 +469,23 @@ public class ResourceManager : Singleton<ResourceManager>
         item.GUID = obj.GetInstanceID();
 
         // 添加到引用缓存的字典
-        if (_assetDic.TryGetValue(crc, out ResourceItem oldItem))
+        if (_refAssetDic.TryGetValue(crc, out ResourceItem oldItem))
         {
-            _assetDic[crc] = item;
+            _refAssetDic[crc] = item;
         }
         else
         {
-            _assetDic.Add(crc, item);
+            _refAssetDic.Add(crc, item);
         }
+
+        // 判断是否需要卸载
+        if (isRelease)
+        {
+            item.IsClear = false; // 预加载跳转场景不清空
+            ReleaseResource(path);
+            return null;
+        }
+
         return obj as T;
     }
 
@@ -449,12 +497,29 @@ public class ResourceManager : Singleton<ResourceManager>
     /// <returns></returns>
     private ResourceItem GetCacheResource(uint crc, int refCount = 1)
     {
-        if (_assetDic.TryGetValue(crc, out ResourceItem item) && item != null)
+        if (_refAssetDic.TryGetValue(crc, out ResourceItem item) && item != null)
         {
             item.RefCount += refCount;
             item.LastRefTime = Time.realtimeSinceStartup;
         }
         return item;
+    }
+
+    /// <summary>
+    /// 清除缓存
+    /// </summary>
+    public void ClearCache()
+    {
+        List<ResourceItem> tempList = new List<ResourceItem>();
+
+        foreach (ResourceItem item in _refAssetDic.Values.ToArray())
+        {
+            if (item.IsClear) tempList.Add(item);
+        }
+
+        foreach (ResourceItem item in tempList) RecycleResource(item, item.IsClear);
+
+        tempList.Clear();
     }
 
     #endregion 资源操作

@@ -207,6 +207,7 @@ public class ResourceItem
     public AssetBundle AssetBundle = null; // 加载完成的AssetBundle
     public Object Object = null; // 实例化生成的游戏对象
     public float LastRefTime = 0.0f; // 最后引用时间
+    public bool IsClear = true; // 跳转是否清除缓存
     protected int _refCount = 0;
 
     public int RefCount // 引用计数
