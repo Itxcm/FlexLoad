@@ -22,16 +22,17 @@ public class ResourecTest : MonoBehaviour
     }
     void Start()
     {
-        /*  Clip = ResourceManager.Instance.LoadResource<AudioClip>("Assets/GameData/Sounds/senlin.mp3");
-          m_AudioSource.clip = Clip;
-          m_AudioSource.Play();*/
+        Clip = ResourceManager.Instance.LoadResource<AudioClip>("Assets/GameData/Sounds/senlin.mp3");
+        m_AudioSource.clip = Clip;
+        m_AudioSource.Play();
 
         //  uint crc = Crc32.GetCrc32("Assets/GameData/Sounds/senlin.mp3");
-        /*        ResourceManager.Instance.LoadResourceAsync("Assets/GameData/Sounds/senlin.mp3", crc, AsyncLoadPriority.RES_SLOW, (path, obj, objs) =>
-                {
-                    m_AudioSource.clip = obj as AudioClip;
-                    m_AudioSource.Play();
-                });*/
+        /*    ResourceManager.Instance.LoadResourceAsync("Assets/GameData/Sounds/senlin.mp3", AsyncLoadPriority.RES_SLOW, false, (path, obj, objs) =>
+            {
+                Clip = obj as AudioClip;
+                m_AudioSource.clip = Clip;
+                m_AudioSource.Play();
+            });*/
 
 
         //   IMG.overrideSprite = ResourceManager.Instance.LoadResource<Sprite>("Assets/GameData/Sprite/WeiPai.png");
@@ -105,5 +106,12 @@ public class ResourecTest : MonoBehaviour
             ResourceManager.Instance.ReleaseResource(Clip, true);
             Clip = null;
         }
+    }
+    private void OnApplicationQuit()
+    {
+#if UNITY_EDITOR
+        Resources.UnloadUnusedAssets();
+        Debug.Log("Çå¿Õ±à¼­Æ÷»º´æ");
+#endif
     }
 }

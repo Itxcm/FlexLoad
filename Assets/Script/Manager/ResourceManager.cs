@@ -102,9 +102,9 @@ public class ResourceManager : Singleton<ResourceManager>
     /// <param name="priority"></param>
     /// <param name="finishCall"></param>
     /// <param name="param"></param>
-    public void LoadResourceAsync(string path, uint crc, AsyncLoadPriority priority, bool isSprite, OnAsyncLoadFinish finishCall, params object[] param)
+    public void LoadResourceAsync(string path, AsyncLoadPriority priority, bool isSprite, OnAsyncLoadFinish finishCall, params object[] param)
     {
-        if (crc == 0) crc = Crc32.GetCrc32(path);
+        uint crc = Crc32.GetCrc32(path);
 
         // 资源缓存了直接加载触发 没缓存 添加异步任务 给异步任务添加完成回调
 
@@ -138,8 +138,12 @@ public class ResourceManager : Singleton<ResourceManager>
 
                 if (asyncList.Count <= 0) continue;
 
+                // 这里必须拿出的时候就移除 不能等加载完再移除
+                AsyncTask task = asyncList[0];
+                asyncList.RemoveAt(0);
+
                 // 异步加载资源 缓存并执行回调
-                mono.StartCoroutine(AsycnLoadAndCache(asyncList[0])); // 每次加载第一个 加载完成会自动移除
+                mono.StartCoroutine(AsycnLoadAndCache(task));
 
                 // 指定超过最大加载时间再继续
                 if (System.DateTime.Now.Ticks - lastYieldTime > MAXLONGRESETIME)
@@ -197,7 +201,7 @@ public class ResourceManager : Singleton<ResourceManager>
         {
             obj = LoadAssetByEditor<Object>(asyncTask.Path);
 
-            yield return new WaitForSeconds(0.5f);   // 模拟异步加载
+            yield return new WaitForSeconds(0.1f);   // 模拟异步加载
 
             item = AssetBundleManager.Instance.GetResourceByCrcPath(asyncTask.Crc);
         }
@@ -294,7 +298,6 @@ public class ResourceManager : Singleton<ResourceManager>
     private void RemoveAsyncTask(AsyncTask asyncTask)
     {
         _asyncTaskDic.Remove(asyncTask.Crc);  //  从异步任务字典移除 
-        _asyncTaskList[(int)asyncTask.Priority].Remove(asyncTask); // 从异步任务列表移除
 
         asyncTask.Reset();
         _asyncTaskPool.Recyle(asyncTask);
@@ -395,6 +398,9 @@ public class ResourceManager : Singleton<ResourceManager>
         if (item.Object != null)
         {
             item.Object = null;
+#if UNITY_EDITOR
+            Resources.UnloadUnusedAssets();
+#endif
         }
 
     }
